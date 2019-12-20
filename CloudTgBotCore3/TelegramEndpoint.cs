@@ -65,13 +65,15 @@ namespace CloudTgBotCore3
                 return new BadRequestResult();
             }
             var message = update.Message;
-            string chatid = message.Chat.Id.ToString();
+            string chatid = message.Chat.Id.ToString().ToLower();
+            chatid = chatid.Remove(0, 1);
+            log.LogInformation(chatid);
             // Create container. Name must be lower case.
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
 
             // write a blob to the container
-            CloudBlockBlob allBlob = container.GetBlockBlobReference("all.txt");
+            CloudBlockBlob allBlob = container.GetBlockBlobReference("all");
             string incStr;
             if ( allBlob.ExistsAsync().Result )
             {
@@ -95,13 +97,29 @@ namespace CloudTgBotCore3
             {
                 personalIncStr = "0";
             }
-            int personalIncs = Convert.ToInt32(personalIncStr);            
+            int personalIncs = Convert.ToInt32(personalIncStr);
 
             // Handling the message
-            if (message.Text == "/inc1")
-            { 
-                ++incs;
-                ++personalIncs;
+
+            string[] msg = message.Text.Split(" ");
+            if (msg[0] == "/inc1")
+            {
+                int inc;
+
+                if ( msg.Length == 1 )
+                {
+                    ++incs;
+                    ++personalIncs;
+                }
+                else if ( msg.Length == 2 )
+                {
+                    if (int.TryParse(msg[1], out inc))
+                    {
+                        incs += inc;
+                        personalIncs += inc;
+                    }
+                }
+
                 incStr = incs.ToString();
                 personalIncStr = personalIncs.ToString();
 
@@ -110,10 +128,24 @@ namespace CloudTgBotCore3
                 personalBlob.UploadTextAsync(personalIncStr).Wait();
             }
 
-            if (message.Text == "/dec1")
+            if (msg[0] == "/dec1")
             {
-                --incs;
-                --personalIncs;
+                int inc;
+
+                if (msg.Length == 1)
+                {
+                    --incs;
+                    --personalIncs;
+                }
+                else if (msg.Length == 2)
+                {
+                    if (int.TryParse(msg[1], out inc))
+                    {
+                        incs -= inc;
+                        personalIncs -= inc;
+                    }
+                }
+
                 incStr = incs.ToString();
                 personalIncStr = personalIncs.ToString();
 
