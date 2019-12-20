@@ -65,7 +65,7 @@ namespace CloudTgBotCore3
                 return new BadRequestResult();
             }
             var message = update.Message;
-            string chatid = message.Chat.Title;
+            string chatid = message.Chat.Id.ToString();
             // Create container. Name must be lower case.
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
