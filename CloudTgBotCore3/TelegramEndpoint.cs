@@ -64,14 +64,16 @@ namespace CloudTgBotCore3
                 log.LogError("Parse failed :(");
                 return new BadRequestResult();
             }
+
+  
             var message = update.Message;
             string chatid = message.Chat.Id.ToString().ToLower();
             chatid = chatid.Remove(0, 1);
             log.LogInformation(chatid);
-            // Create container. Name must be lower case.
+            
             var container = serviceClient.GetContainerReference(chatid);
-            container.CreateIfNotExistsAsync().Wait();
-
+            container.CreateIfNotExistsAsync().Wait();  
+            
             // write a blob to the container
             CloudBlockBlob allBlob = container.GetBlockBlobReference("all");
             string incStr;
@@ -84,8 +86,8 @@ namespace CloudTgBotCore3
                 incStr = "0";
             }
             int incs = Convert.ToInt32(incStr);
+            
 
-           
             string senderName = message.From.FirstName;
             CloudBlockBlob personalBlob = container.GetBlockBlobReference(senderName);
             string personalIncStr;
@@ -98,63 +100,50 @@ namespace CloudTgBotCore3
                 personalIncStr = "0";
             }
             int personalIncs = Convert.ToInt32(personalIncStr);
-
+            
             // Handling the message
-
+            
             string[] msg = message.Text.Split(" ");
-            if (msg[0] == "/inc1")
+            int inc;
+            if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
-                int inc;
+                inc = DefIncrement(msg);
 
-                if ( msg.Length == 1 )
-                {
-                    ++incs;
-                    ++personalIncs;
-                }
-                else if ( msg.Length == 2 )
-                {
-                    if (int.TryParse(msg[1], out inc))
-                    {
-                        incs += inc;
-                        personalIncs += inc;
-                    }
-                }
+                incs += inc;
+                personalIncs += inc;
 
                 incStr = incs.ToString();
                 personalIncStr = personalIncs.ToString();
 
-                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + incStr + " You: " + personalIncStr);
-                allBlob.UploadTextAsync(incStr).Wait();
-                personalBlob.UploadTextAsync(personalIncStr).Wait();
-            }
-
-            if (msg[0] == "/dec1")
-            {
-                int inc;
-
-                if (msg.Length == 1)
-                {
-                    --incs;
-                    --personalIncs;
-                }
-                else if (msg.Length == 2)
-                {
-                    if (int.TryParse(msg[1], out inc))
-                    {
-                        incs -= inc;
-                        personalIncs -= inc;
-                    }
-                }
-
-                incStr = incs.ToString();
-                personalIncStr = personalIncs.ToString();
-
-                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + incStr + " You: " + personalIncStr);
+                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + incStr + " " + senderName + ": " + personalIncStr);
                 allBlob.UploadTextAsync(incStr).Wait();
                 personalBlob.UploadTextAsync(personalIncStr).Wait();
             }
             
             return new OkResult();
+        }
+       public static int DefIncrement(string[] msg)
+        {
+            int inc = 0;
+            int sign = 0;
+            if (msg[0] == "/inc1")
+            {
+                sign = 1;
+            }
+            else
+            {
+                sign = -1;
+            }
+            if (msg.Length == 1)
+            {
+                inc = sign;
+            }
+            else
+            {
+                int.TryParse(msg[1], out inc);
+                inc *= sign;
+            }
+            return inc;
         }
     }
 }
