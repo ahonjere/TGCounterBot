@@ -12,14 +12,15 @@ using Newtonsoft.Json;
 using Telegram.Bot.Types;
 
 
+
 namespace CloudTgBotCore3
 {
-    public static class TelegramEndpoint
+    public static partial class TelegramEndpoint
     {
         [FunctionName("TelegramEndpoint")]
         public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "EndpointName")]HttpRequest req, ILogger log)
         {
-            
+
             string botApiKey;
             try
             {
@@ -51,7 +52,7 @@ namespace CloudTgBotCore3
             CloudStorageAccount account = CloudStorageAccount.Parse(storageAccountConnStr);
             CloudBlobClient serviceClient = account.CreateCloudBlobClient();
 
-           
+
             // Class provided by the Telegram.Bot library
             Update update;
             try
@@ -65,64 +66,83 @@ namespace CloudTgBotCore3
                 return new BadRequestResult();
             }
 
-  
+
             var message = update.Message;
             string chatid = message.Chat.Id.ToString().ToLower();
             chatid = chatid.Remove(0, 1);
             log.LogInformation(chatid);
-            
-            var container = serviceClient.GetContainerReference(chatid);
-            container.CreateIfNotExistsAsync().Wait();  
-            
-            // write a blob to the container
-            CloudBlockBlob allBlob = container.GetBlockBlobReference("all");
-            string incStr;
-            if ( allBlob.ExistsAsync().Result )
-            {
-                incStr = await allBlob.DownloadTextAsync();
-            }
-            else 
-            {
-                incStr = "0";
-            }
-            int incs = Convert.ToInt32(incStr);
-            
 
-            string senderName = message.From.FirstName;
-            CloudBlockBlob personalBlob = container.GetBlockBlobReference(senderName);
-            string personalIncStr;
-            if (personalBlob.ExistsAsync().Result)
+            var container = serviceClient.GetContainerReference(chatid);
+            container.CreateIfNotExistsAsync().Wait();
+
+       
+            CloudBlockBlob allBlob = container.GetBlockBlobReference("all.txt");
+            CloudBlockBlob userBlob = container.GetBlockBlobReference("users.json");
+            int all;
+           
+            
+            if (allBlob.ExistsAsync().Result)
             {
-                personalIncStr = await personalBlob.DownloadTextAsync();
+                string allStr;
+                allStr = await allBlob.DownloadTextAsync();
+                all = Convert.ToInt32(allStr);
             }
             else
             {
-                personalIncStr = "0";
+                all = 0;
             }
-            int personalIncs = Convert.ToInt32(personalIncStr);
             
+            string jsonStr;
+            Users users;
+            if (userBlob.ExistsAsync().Result)
+            {   
+                jsonStr = await userBlob.DownloadTextAsync();
+                users = JsonConvert.DeserializeObject<Users>(jsonStr);
+            }
+            else
+            {
+                users = new Users();
+            }
+           
+
+            string senderName = message.From.FirstName;
+            string senderUserName = message.From.Username;
+            User user;
+            if (users.Accounts.ContainsKey(senderUserName))
+            {
+                user = users.Accounts[senderUserName];
+            }
+            else
+            {
+                user = new User
+                {
+                    Name = senderName,
+                    Incs = 0,
+                    FirstInc = DateTime.Today
+                };
+                users.Accounts[senderUserName] = user;              
+            }
+
             // Handling the message
-            
+
             string[] msg = message.Text.Split(" ");
-            int inc;
+            
             if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
-                inc = DefIncrement(msg);
+                int inc = DefIncrement(msg);
 
-                incs += inc;
-                personalIncs += inc;
-
-                incStr = incs.ToString();
-                personalIncStr = personalIncs.ToString();
-
-                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + incStr + " " + senderName + ": " + personalIncStr);
-                allBlob.UploadTextAsync(incStr).Wait();
-                personalBlob.UploadTextAsync(personalIncStr).Wait();
+                user.Incs += inc;
+                all += inc;
+                
+                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + all.ToString() + " " + senderName + ": " + user.Incs.ToString());
             }
-            
+            jsonStr = JsonConvert.SerializeObject(users);
+            await userBlob.UploadTextAsync(jsonStr);
+            await allBlob.UploadTextAsync(all.ToString());
+
             return new OkResult();
         }
-       public static int DefIncrement(string[] msg)
+        public static int DefIncrement(string[] msg)
         {
             int inc = 0;
             int sign = 0;
