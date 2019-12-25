@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Http;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -52,13 +54,11 @@ namespace CloudTgBotCore3
             CloudStorageAccount account = CloudStorageAccount.Parse(storageAccountConnStr);
             CloudBlobClient serviceClient = account.CreateCloudBlobClient();
 
-
             // Class provided by the Telegram.Bot library
             Update update;
             try
             {
                 update = JsonConvert.DeserializeObject<Update>(jsonContent);
-                log.LogInformation("Parse succeeded!");
             }
             catch (Exception)
             {
@@ -66,20 +66,16 @@ namespace CloudTgBotCore3
                 return new BadRequestResult();
             }
 
-
             var message = update.Message;
             string chatid = message.Chat.Id.ToString().ToLower();
             chatid = chatid.Remove(0, 1);
-            log.LogInformation(chatid);
 
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
 
-       
             CloudBlockBlob allBlob = container.GetBlockBlobReference("all.txt");
             CloudBlockBlob userBlob = container.GetBlockBlobReference("users.json");
             int all;
-           
             
             if (allBlob.ExistsAsync().Result)
             {
@@ -91,11 +87,11 @@ namespace CloudTgBotCore3
             {
                 all = 0;
             }
-            
+
             string jsonStr;
             Users users;
             if (userBlob.ExistsAsync().Result)
-            {   
+            {
                 jsonStr = await userBlob.DownloadTextAsync();
                 users = JsonConvert.DeserializeObject<Users>(jsonStr);
             }
@@ -103,10 +99,11 @@ namespace CloudTgBotCore3
             {
                 users = new Users();
             }
-           
+
 
             string senderName = message.From.FirstName;
             string senderUserName = message.From.Username;
+            string senderId = message.From.Id.ToString();
             User user;
             if (users.Accounts.ContainsKey(senderUserName))
             {
@@ -117,28 +114,38 @@ namespace CloudTgBotCore3
                 user = new User
                 {
                     Name = senderName,
+                    UserName = senderUserName,
                     Incs = 0,
                     FirstInc = DateTime.Today
                 };
-                users.Accounts[senderUserName] = user;              
+                users.Accounts[senderId] = user;
             }
 
             // Handling the message
-
+           
             string[] msg = message.Text.Split(" ");
-            
+            string msg_to_send = "";
             if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
                 int inc = DefIncrement(msg);
 
                 user.Incs += inc;
                 all += inc;
-                
-                await botClient.SendTextMessageAsync(message.Chat.Id, "All: " + all.ToString() + " " + senderName + ": " + user.Incs.ToString());
+
+                msg_to_send = "All: " + all.ToString() + " " + senderName + ": " + user.Incs.ToString();
+            }
+            if (msg[0] == "/leaderboard")
+            {
+                msg_to_send = Leaderboard(users);
             }
             jsonStr = JsonConvert.SerializeObject(users);
             await userBlob.UploadTextAsync(jsonStr);
             await allBlob.UploadTextAsync(all.ToString());
+            if (msg_to_send != "")
+            {
+                await botClient.SendTextMessageAsync(message.Chat.Id, msg_to_send);
+            }
+
 
             return new OkResult();
         }
@@ -165,5 +172,30 @@ namespace CloudTgBotCore3
             }
             return inc;
         }
+        public static string Leaderboard(Users users)
+        {
+            List<KeyValuePair<string, int>> incs = new List<KeyValuePair<string, int>>();
+            
+            
+            foreach (var pair in users.Accounts)
+            {
+                incs.Add(new KeyValuePair<string, int>(pair.Value.Name, pair.Value.Incs));
+            }
+
+            incs.Sort((pair1, pair2) => pair2.Value.CompareTo(pair1.Value));
+            
+            string msg_to_send = "";
+            int i = 1;
+            foreach (var pair in incs)
+            {
+                msg_to_send += i + ". " + pair.Key + ": " + pair.Value + Environment.NewLine;
+                ++i;
+            }
+            return msg_to_send;
+
+          
+        }
     }
 }
+
+           
