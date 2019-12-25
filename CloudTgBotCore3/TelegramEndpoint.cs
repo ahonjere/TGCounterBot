@@ -67,7 +67,15 @@ namespace CloudTgBotCore3
             }
 
             var message = update.Message;
-            string chatid = message.Chat.Id.ToString().ToLower();
+            string chatid = "";
+            try
+            {
+                chatid = message.Chat.Id.ToString().ToLower();
+            }
+            catch (Exception)
+            {
+                return new OkResult();
+            }
             chatid = chatid.Remove(0, 1);
 
             var container = serviceClient.GetContainerReference(chatid);
@@ -105,9 +113,9 @@ namespace CloudTgBotCore3
             string senderUserName = message.From.Username;
             string senderId = message.From.Id.ToString();
             User user;
-            if (users.Accounts.ContainsKey(senderUserName))
+            if (users.Accounts.ContainsKey(senderId))
             {
-                user = users.Accounts[senderUserName];
+                user = users.Accounts[senderId];
             }
             else
             {
@@ -127,7 +135,7 @@ namespace CloudTgBotCore3
             string msg_to_send = "";
             if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
-                int inc = DefIncrement(msg);
+                int inc = GetIncrement(msg);
 
                 user.Incs += inc;
                 all += inc;
@@ -136,11 +144,17 @@ namespace CloudTgBotCore3
             }
             if (msg[0] == "/leaderboard")
             {
-                msg_to_send = Leaderboard(users);
+                msg_to_send = GetLeaderboard(users);
             }
             jsonStr = JsonConvert.SerializeObject(users);
             await userBlob.UploadTextAsync(jsonStr);
             await allBlob.UploadTextAsync(all.ToString());
+            if (msg[0] == "/stats")
+            {
+                double incs_per_day = user.Incs / (DateTime.Today - user.FirstInc).TotalDays;
+
+                msg_to_send = "All: Incs: " + user.Incs + ". Incs per day: " + incs_per_day.ToString();
+            }
             if (msg_to_send != "")
             {
                 await botClient.SendTextMessageAsync(message.Chat.Id, msg_to_send);
@@ -149,7 +163,7 @@ namespace CloudTgBotCore3
 
             return new OkResult();
         }
-        public static int DefIncrement(string[] msg)
+        public static int GetIncrement(string[] msg)
         {
             int inc = 0;
             int sign = 0;
@@ -172,7 +186,7 @@ namespace CloudTgBotCore3
             }
             return inc;
         }
-        public static string Leaderboard(Users users)
+        public static string GetLeaderboard(Users users)
         {
             List<KeyValuePair<string, int>> incs = new List<KeyValuePair<string, int>>();
             
