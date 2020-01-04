@@ -8,7 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Readme.md = Readme.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CloudTgBotCore3", "CloudTgBotCore3\CloudTgBotCore3.csproj", "{2D26C8AF-799A-4305-BD99-4529ADE080B6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TgCounterBotCore3", "CloudTgBotCore3\TgCounterBotCore3.csproj", "{2D26C8AF-799A-4305-BD99-4529ADE080B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

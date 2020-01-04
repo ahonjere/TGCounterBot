@@ -1,11 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using Microsoft.Extensions.Logging;
+
 
 namespace CloudTgBotCore3
 {
     public static partial class TelegramEndpoint
     {
+        public static string[] GetKeys(ILogger log)
+        {
+            string[] keys = new string[3];
+            string botApiKey;
+            try
+            {
+                // Gets a variable, in local environment from local.settings, in Azure from Functions environment variables
+                botApiKey = Environment.GetEnvironmentVariable("TelegramBotApiKey");
+                keys.SetValue(botApiKey, 0);
+            }
+            catch (Exception)
+            {
+                log.LogError("No Telegram bot key defined");
+            }
+            
+            string storageAccountKey;
+            string storageAccountConnStr;
+            try
+            {
+                // Gets a variable, in local environment from local.settings, in Azure from Functions environment variables
+                storageAccountKey = Environment.GetEnvironmentVariable("StorageAccountKey");
+                storageAccountConnStr = Environment.GetEnvironmentVariable("StorageAccountConnectionString");
+                keys.SetValue(storageAccountKey, 1);
+                keys.SetValue(storageAccountConnStr, 2);
+            }
+            catch (Exception)
+            {
+                log.LogError("No storage account defined");
+            }
+
+            return keys;
+        }
         public static string GetLeaderboard(Users users)
         {
             List<KeyValuePair<string, int>> incs = new List<KeyValuePair<string, int>>();

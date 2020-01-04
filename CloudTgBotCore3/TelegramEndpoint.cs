@@ -22,31 +22,13 @@ namespace CloudTgBotCore3
         [FunctionName("TelegramEndpoint")]
         public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "EndpointName")]HttpRequest req, ILogger log)
         {
+            string[] keys = GetKeys(log);
 
-            string botApiKey;
-            try
-            {
-                // Gets a variable, in local environment from local.settings, in Azure from Functions environment variables
-                botApiKey = Environment.GetEnvironmentVariable("TelegramBotApiKey");
-            }
-            catch (Exception)
-            {
-                log.LogError("No Telegram bot key defined");
-                return new InternalServerErrorResult();
-            }
-            string storageAccountKey;
-            string storageAccountConnStr;
-            try
-            {
-                // Gets a variable, in local environment from local.settings, in Azure from Functions environment variables
-                storageAccountKey = Environment.GetEnvironmentVariable("StorageAccountKey");
-                storageAccountConnStr = Environment.GetEnvironmentVariable("StorageAccountConnectionString");
-            }
-            catch (Exception)
-            {
-                log.LogError("No storage account defined");
-                return new InternalServerErrorResult();
-            }
+            
+            string botApiKey = keys[0];
+            string storageAccountKey = keys[1];
+            string storageAccountConnStr = keys[2];
+
             var botClient = new Telegram.Bot.TelegramBotClient(botApiKey);
 
             string jsonContent = await req.ReadAsStringAsync();
@@ -67,17 +49,13 @@ namespace CloudTgBotCore3
             }
 
             var message = update.Message;
-            string chatid = "";
-
-            try
-            {
-                chatid = message.Chat.Id.ToString().ToLower();
-            }
-            catch (Exception)
-            {
-                return new OkResult();
-            }
+            string chatid;
+                
+            chatid = message.Chat.Id.ToString().ToLower();
+            // If chat is group, the first character is '-', which cannot be the 
+            // first character of container name in Azure.
             chatid = chatid.Remove(0, 1);
+
 
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
