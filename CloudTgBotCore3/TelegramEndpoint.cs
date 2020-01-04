@@ -26,7 +26,6 @@ namespace CloudTgBotCore3
 
             
             string botApiKey = keys[0];
-            string storageAccountKey = keys[1];
             string storageAccountConnStr = keys[2];
 
             var botClient = new Telegram.Bot.TelegramBotClient(botApiKey);
@@ -56,11 +55,9 @@ namespace CloudTgBotCore3
             // first character of container name in Azure.
             chatid = chatid.Remove(0, 1);
 
-
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
 
-           
             CloudBlockBlob blob = container.GetBlockBlobReference("users.json");
    
 
