@@ -68,6 +68,7 @@ namespace CloudTgBotCore3
 
             var message = update.Message;
             string chatid = "";
+
             try
             {
                 chatid = message.Chat.Id.ToString().ToLower();
@@ -81,31 +82,44 @@ namespace CloudTgBotCore3
             var container = serviceClient.GetContainerReference(chatid);
             container.CreateIfNotExistsAsync().Wait();
 
-            CloudBlockBlob allBlob = container.GetBlockBlobReference("all.txt");
-            CloudBlockBlob userBlob = container.GetBlockBlobReference("users.json");
-            int all;
-            
-            if (allBlob.ExistsAsync().Result)
-            {
-                string allStr;
-                allStr = await allBlob.DownloadTextAsync();
-                all = Convert.ToInt32(allStr);
-            }
-            else
-            {
-                all = 0;
-            }
+           
+            CloudBlockBlob blob = container.GetBlockBlobReference("users.json");
+   
 
             string jsonStr;
             Users users;
-            if (userBlob.ExistsAsync().Result)
+            User all;
+            if (blob.ExistsAsync().Result)
             {
-                jsonStr = await userBlob.DownloadTextAsync();
+                jsonStr = await blob.DownloadTextAsync();
                 users = JsonConvert.DeserializeObject<Users>(jsonStr);
+                if (users.Accounts.ContainsKey("all"))
+                {
+                    all = users.Accounts["all"];
+                }
+                else
+                {
+                    all = new User
+                    {
+                        Name = "all",
+                        Incs = 0,
+                        FirstInc = DateTime.Today
+                    };
+
+                    users.Accounts["all"] = all;
+                }
             }
             else
             {
                 users = new Users();
+                all = new User
+                {
+                    Name = "all",
+                    Incs = 0,
+                    FirstInc = DateTime.Today
+                };
+                
+                users.Accounts["All"]  = all;
             }
 
 
@@ -113,6 +127,7 @@ namespace CloudTgBotCore3
             string senderUserName = message.From.Username;
             string senderId = message.From.Id.ToString();
             User user;
+
             if (users.Accounts.ContainsKey(senderId))
             {
                 user = users.Accounts[senderId];
@@ -133,82 +148,46 @@ namespace CloudTgBotCore3
            
             string[] msg = message.Text.Split(" ");
             string msg_to_send = "";
+
             if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
                 int inc = GetIncrement(msg);
 
                 user.Incs += inc;
-                all += inc;
+                all.Incs += inc;
 
-                msg_to_send = "All: " + all.ToString() + " " + senderName + ": " + user.Incs.ToString();
+                msg_to_send = "All: " + all.Incs.ToString() + " " + senderName + ": " + user.Incs.ToString();
             }
+
             if (msg[0] == "/leaderboard")
             {
                 msg_to_send = GetLeaderboard(users);
             }
-            jsonStr = JsonConvert.SerializeObject(users);
-            await userBlob.UploadTextAsync(jsonStr);
-            await allBlob.UploadTextAsync(all.ToString());
             if (msg[0] == "/stats")
             {
+             
+                if (msg.Length == 2)
+                {
+                    if (msg[1] == "all")
+                    {
+                        user = users.Accounts["all"];
+                    }
+                }
                 double incs_per_day = user.Incs / (DateTime.Today - user.FirstInc).TotalDays;
-
-                msg_to_send = "All: Incs: " + user.Incs + ". Incs per day: " + incs_per_day.ToString();
+                incs_per_day = Math.Round(incs_per_day, 2);
+                msg_to_send = user.Name + " Incs: " + user.Incs + ". Incs per day: " + incs_per_day.ToString();
             }
             if (msg_to_send != "")
             {
                 await botClient.SendTextMessageAsync(message.Chat.Id, msg_to_send);
             }
 
+            jsonStr = JsonConvert.SerializeObject(users);
+            await blob.UploadTextAsync(jsonStr);
 
             return new OkResult();
         }
-        public static int GetIncrement(string[] msg)
-        {
-            int inc = 0;
-            int sign = 0;
-            if (msg[0] == "/inc1")
-            {
-                sign = 1;
-            }
-            else
-            {
-                sign = -1;
-            }
-            if (msg.Length == 1)
-            {
-                inc = sign;
-            }
-            else
-            {
-                int.TryParse(msg[1], out inc);
-                inc *= sign;
-            }
-            return inc;
-        }
-        public static string GetLeaderboard(Users users)
-        {
-            List<KeyValuePair<string, int>> incs = new List<KeyValuePair<string, int>>();
-            
-            
-            foreach (var pair in users.Accounts)
-            {
-                incs.Add(new KeyValuePair<string, int>(pair.Value.Name, pair.Value.Incs));
-            }
-
-            incs.Sort((pair1, pair2) => pair2.Value.CompareTo(pair1.Value));
-            
-            string msg_to_send = "";
-            int i = 1;
-            foreach (var pair in incs)
-            {
-                msg_to_send += i + ". " + pair.Key + ": " + pair.Value + Environment.NewLine;
-                ++i;
-            }
-            return msg_to_send;
-
-          
-        }
+       
     }
 }
 
