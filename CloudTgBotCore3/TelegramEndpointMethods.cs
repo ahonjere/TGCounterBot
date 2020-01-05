@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Azure.Storage.Blob;
+using Newtonsoft.Json;
 
 
 namespace CloudTgBotCore3
 {
     public static partial class TelegramEndpoint
     {
-        public static string[] GetKeys(ILogger log)
+        // Returns string[] with format {botApiKey, storageAccountConnStr}
+        public static string[] GetKeys(ref ILogger log)
         {
-            string[] keys = new string[3];
+            string[] keys = new string[2];
             string botApiKey;
             try
             {
@@ -22,15 +26,11 @@ namespace CloudTgBotCore3
                 log.LogError("No Telegram bot key defined");
             }
             
-            string storageAccountKey;
             string storageAccountConnStr;
             try
             {
-                // Gets a variable, in local environment from local.settings, in Azure from Functions environment variables
-                storageAccountKey = Environment.GetEnvironmentVariable("StorageAccountKey");
                 storageAccountConnStr = Environment.GetEnvironmentVariable("StorageAccountConnectionString");
-                keys.SetValue(storageAccountKey, 1);
-                keys.SetValue(storageAccountConnStr, 2);
+                keys.SetValue(storageAccountConnStr, 1);
             }
             catch (Exception)
             {
@@ -39,6 +39,57 @@ namespace CloudTgBotCore3
 
             return keys;
         }
+        // Reads all user data from cloud blob. If there is none, creates new blob with user "all".
+        public static void GetUsers(ref Users users, ref User all, CloudBlockBlob blob)
+        {
+            string jsonStr;
+            if (blob.ExistsAsync().Result)
+            {
+                jsonStr = blob.DownloadText();
+                users = JsonConvert.DeserializeObject<Users>(jsonStr);
+                if (users.Accounts.ContainsKey("all"))
+                {
+                    all = users.Accounts["all"];
+                }
+            }
+            else
+            {
+                users = new Users();
+                all = new User
+                {
+                    Name = "all",
+                    Incs = 0,
+                    FirstInc = DateTime.Today
+                };
+
+                users.Accounts["All"] = all;
+            }
+        }
+        // Returns amount of increments.
+        public static int GetIncrement(string[] msg)
+        {
+            int inc;
+            int sign;
+            if (msg[0] == "/inc1")
+            {
+                sign = 1;
+            }
+            else
+            {
+                sign = -1;
+            }
+            if (msg.Length == 1)
+            {
+                inc = sign;
+            }
+            else
+            {
+                int.TryParse(msg[1], out inc);
+                inc *= sign;
+            }
+            return inc;
+        }
+        // Returns leaderboard in form of string.
         public static string GetLeaderboard(Users users)
         {
             List<KeyValuePair<string, int>> incs = new List<KeyValuePair<string, int>>();
@@ -65,29 +116,7 @@ namespace CloudTgBotCore3
 
 
         }
-        public static int GetIncrement(string[] msg)
-        {
-            int inc;
-            int sign;
-            if (msg[0] == "/inc1")
-            {
-                sign = 1;
-            }
-            else
-            {
-                sign = -1;
-            }
-            if (msg.Length == 1)
-            {
-                inc = sign;
-            }
-            else
-            {
-                int.TryParse(msg[1], out inc);
-                inc *= sign;
-            }
-            return inc;
-        }
+        
 
     }
 }

@@ -6,8 +6,8 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.Azure.Storage;
+using Microsoft.Azure.Storage.Blob;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -22,18 +22,17 @@ namespace CloudTgBotCore3
         [FunctionName("TelegramEndpoint")]
         public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "EndpointName")]HttpRequest req, ILogger log)
         {
-            string[] keys = GetKeys(log);
-
+            string[] keys =  GetKeys(ref log);
             
             string botApiKey = keys[0];
-            string storageAccountConnStr = keys[2];
+            string storageAccountConnStr = keys[1];
+
+            CloudStorageAccount account = CloudStorageAccount.Parse(storageAccountConnStr);
+            CloudBlobClient serviceClient = account.CreateCloudBlobClient();
 
             var botClient = new Telegram.Bot.TelegramBotClient(botApiKey);
 
             string jsonContent = await req.ReadAsStringAsync();
-
-            CloudStorageAccount account = CloudStorageAccount.Parse(storageAccountConnStr);
-            CloudBlobClient serviceClient = account.CreateCloudBlobClient();
 
             // Class provided by the Telegram.Bot library
             Update update;
@@ -48,9 +47,7 @@ namespace CloudTgBotCore3
             }
 
             var message = update.Message;
-            string chatid;
-                
-            chatid = message.Chat.Id.ToString().ToLower();
+            string chatid = message.Chat.Id.ToString().ToLower();
             // If chat is group, the first character is '-', which cannot be the 
             // first character of container name in Azure.
             chatid = chatid.Remove(0, 1);
@@ -60,44 +57,10 @@ namespace CloudTgBotCore3
 
             CloudBlockBlob blob = container.GetBlockBlobReference("users.json");
    
-
-            string jsonStr;
-            Users users;
-            User all;
-            if (blob.ExistsAsync().Result)
-            {
-                jsonStr = await blob.DownloadTextAsync();
-                users = JsonConvert.DeserializeObject<Users>(jsonStr);
-                if (users.Accounts.ContainsKey("all"))
-                {
-                    all = users.Accounts["all"];
-                }
-                else
-                {
-                    all = new User
-                    {
-                        Name = "all",
-                        Incs = 0,
-                        FirstInc = DateTime.Today
-                    };
-
-                    users.Accounts["all"] = all;
-                }
-            }
-            else
-            {
-                users = new Users();
-                all = new User
-                {
-                    Name = "all",
-                    Incs = 0,
-                    FirstInc = DateTime.Today
-                };
-                
-                users.Accounts["All"]  = all;
-            }
-
-
+            Users users = new Users();
+            User all = new User();
+            GetUsers(ref users, ref all, blob);
+           
             string senderName = message.From.FirstName;
             string senderUserName = message.From.Username;
             string senderId = message.From.Id.ToString();
@@ -157,7 +120,7 @@ namespace CloudTgBotCore3
                 await botClient.SendTextMessageAsync(message.Chat.Id, msg_to_send);
             }
 
-            jsonStr = JsonConvert.SerializeObject(users);
+            string jsonStr = JsonConvert.SerializeObject(users);
             await blob.UploadTextAsync(jsonStr);
 
             return new OkResult();
