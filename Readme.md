@@ -7,7 +7,7 @@ and is made to match the needs of one specific group.
 - Keeps track of all increments
 - Keeps track of every users personal increments
 - Can tell how many drinks sender, or all the users combined have drunk on average per day
-- 
+
 ### TODO
 - Printing usernames, when there is many people with same first name
 - Increment streak
