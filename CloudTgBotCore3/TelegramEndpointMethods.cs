@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Storage.Blob;
 using Newtonsoft.Json;
+using Telegram.Bot.Types;
 
 
 namespace CloudTgBotCore3
@@ -40,7 +40,7 @@ namespace CloudTgBotCore3
             return keys;
         }
         // Reads all user data from cloud blob. If there is none, creates new blob with user "all".
-        public static void GetUsers(ref Users users, ref User all, CloudBlockBlob blob)
+        public static void GetUsers(ref Users users, ref User all, ref CloudBlockBlob blob)
         {
             string jsonStr;
             if (blob.ExistsAsync().Result)
@@ -62,7 +62,29 @@ namespace CloudTgBotCore3
                     FirstInc = DateTime.Today
                 };
 
-                users.Accounts["All"] = all;
+                users.Accounts.Add("All", all);
+            }
+        }
+        // Pulls the data of sender from database.
+        public static void GetSender(Message message, ref User sender, ref Users users)
+        {
+            string senderName = message.From.FirstName;
+            string senderUserName = message.From.Username;
+            string senderId = message.From.Id.ToString();
+            if (users.Accounts.ContainsKey(senderId))
+            {
+                sender = users.Accounts[senderId];
+            }
+            else
+            {
+                sender = new User
+                {
+                    Name = senderName,
+                    UserName = senderUserName,
+                    Incs = 0,
+                    FirstInc = DateTime.Today
+                };
+                users.Accounts[senderId] = sender;
             }
         }
         // Returns amount of increments.
@@ -113,10 +135,6 @@ namespace CloudTgBotCore3
                 ++i;
             }
             return msg_to_send;
-
-
         }
-        
-
     }
 }

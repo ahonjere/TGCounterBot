@@ -56,45 +56,32 @@ namespace CloudTgBotCore3
             container.CreateIfNotExistsAsync().Wait();
 
             CloudBlockBlob blob = container.GetBlockBlobReference("users.json");
-   
+            
             Users users = new Users();
             User all = new User();
-            GetUsers(ref users, ref all, blob);
+            GetUsers(ref users, ref all, ref blob);
            
-            string senderName = message.From.FirstName;
-            string senderUserName = message.From.Username;
-            string senderId = message.From.Id.ToString();
-            User user;
-
-            if (users.Accounts.ContainsKey(senderId))
-            {
-                user = users.Accounts[senderId];
-            }
-            else
-            {
-                user = new User
-                {
-                    Name = senderName,
-                    UserName = senderUserName,
-                    Incs = 0,
-                    FirstInc = DateTime.Today
-                };
-                users.Accounts[senderId] = user;
-            }
-
-            // Handling the message
-           
-            string[] msg = message.Text.Split(" ");
+            User sender = new User();
+            GetSender(message, ref sender, ref users);
             string msg_to_send = "";
+            // Handling the message
+            if ( message.Text.Contains("@aukte123Bot") )
+            {
+                message.Text = message.Text.Remove(message.Text.Length - 12);
+                
+            }
+            message.Text = message.Text.ToLower();
+            string[] msg = message.Text.Split(" ");
+            
 
             if (msg[0] == "/inc1" | msg[0] == "/dec1")
             {
                 int inc = GetIncrement(msg);
 
-                user.Incs += inc;
+                sender.Incs += inc;
                 all.Incs += inc;
 
-                msg_to_send = "All: " + all.Incs.ToString() + " " + senderName + ": " + user.Incs.ToString();
+                msg_to_send = "All: " + all.Incs.ToString() + " " + sender.Name + ": " + sender.Incs.ToString();
             }
 
             if (msg[0] == "/leaderboard")
@@ -108,12 +95,12 @@ namespace CloudTgBotCore3
                 {
                     if (msg[1] == "all")
                     {
-                        user = users.Accounts["all"];
+                        sender = users.Accounts["all"];
                     }
                 }
-                double incs_per_day = user.Incs / (DateTime.Today - user.FirstInc).TotalDays;
+                double incs_per_day = sender.Incs / (DateTime.Today - sender.FirstInc).TotalDays;
                 incs_per_day = Math.Round(incs_per_day, 2);
-                msg_to_send = user.Name + " Incs: " + user.Incs + ". Incs per day: " + incs_per_day.ToString();
+                msg_to_send = sender.Name + " Incs: " + sender.Incs + ". Incs per day: " + incs_per_day.ToString();
             }
             if (msg_to_send != "")
             {
